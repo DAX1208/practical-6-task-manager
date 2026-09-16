@@ -137,7 +137,39 @@ P-6
 ```
 
 ---
+1. CODE SPLITTING
+   ↓
+   Break big JS into smaller pieces
+   ↓
+   Faster initial loading
 
+
+2. CHUNK SPLITTING
+   ↓
+   Separate libraries/components into files
+   ↓
+   Better loading + caching
+
+
+3. ACCESSIBILITY
+   ↓
+   Make website understandable to everyone
+   ↓
+   Labels + ARIA + contrast
+
+
+4. SEO
+   ↓
+   Help search engines understand the website
+   ↓
+   Title + description + metadata
+
+
+5. BACKEND OPTIMIZATION
+   ↓
+   Don't unnecessarily block requests
+   ↓
+   Better API responsiveness
 ## How to Run Locally
 
 1. **Start MongoDB**:
