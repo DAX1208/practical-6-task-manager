@@ -1,534 +1,159 @@
-import { useEffect, useState } from "react";
-
-import {
-    getTasks,
-    createTask,
-    updateTask,
-    deleteTask
-} from "./api";
-
+import React, { useEffect, useState, useCallback } from "react";
+import { getTasks, createTask, updateTask, deleteTask } from "./api";
+import Header from "./components/Header";
+import TaskForm from "./components/TaskForm";
+import TaskList from "./components/TaskList";
+import Toast from "./components/Toast";
+import Footer from "./components/Footer";
 import "./index.css";
 
-
 function App() {
-
-    // ===============================
     // State
-    // ===============================
-
     const [tasks, setTasks] = useState([]);
-
-    const [title, setTitle] = useState("");
-
-    const [description, setDescription] = useState("");
-
     const [loading, setLoading] = useState(false);
-
     const [error, setError] = useState("");
-
     const [message, setMessage] = useState("");
 
-
-    // ===============================
-    // Load Tasks
-    // ===============================
-
-    useEffect(() => {
-
-        loadTasks();
-
+    // Load tasks on mount
+    const loadTasks = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError("");
+            const data = await getTasks();
+            setTasks(data || []);
+        } catch (err) {
+            setError(err.message || "Failed to load tasks");
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-
-    const loadTasks = async () => {
-
-        try {
-
-            setLoading(true);
-
-            setError("");
-
-            const data = await getTasks();
-
-            setTasks(data);
-
-        } catch (error) {
-
-            setError(
-                error.message || "Failed to load tasks"
-            );
-
-        } finally {
-
-            setLoading(false);
-
+    useEffect(() => {
+        let isMounted = true;
+        
+        async function fetchInitialTasks() {
+            try {
+                setLoading(true);
+                const data = await getTasks();
+                if (isMounted) {
+                    setTasks(data || []);
+                }
+            } catch (err) {
+                if (isMounted) {
+                    setError(err.message || "Failed to load tasks");
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
         }
-    };
 
+        fetchInitialTasks();
 
-    // ===============================
-    // Toast
-    // ===============================
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
-    const showMessage = (text) => {
-
+    // Toast helper
+    const showMessage = useCallback((text) => {
         setMessage(text);
-
         setTimeout(() => {
-
             setMessage("");
-
         }, 3000);
-    };
+    }, []);
 
+    const handleError = useCallback((errText) => {
+        setError(errText);
+        setTimeout(() => {
+            setError("");
+        }, 4000);
+    }, []);
 
-    // ===============================
     // CREATE
-    // ===============================
+    const handleCreate = useCallback(async (newTaskData) => {
+        const newTask = await createTask(newTaskData);
+        setTasks((prev) => [newTask, ...prev]);
+        showMessage("Task created successfully");
+        return newTask;
+    }, [showMessage]);
 
-    const handleCreate = async (event) => {
-
-        event.preventDefault();
-
-        setError("");
-
-
-        if (!title.trim()) {
-
-            setError("Please enter a task title");
-
-            return;
-        }
-
-
-        if (!description.trim()) {
-
-            setError("Please enter a task description");
-
-            return;
-        }
-
-
+    // UPDATE
+    const handleUpdate = useCallback(async (task) => {
         try {
-
+            setError("");
             setLoading(true);
 
-            const newTask = await createTask({
-
-                title: title.trim(),
-
-                description: description.trim()
-
+            const updated = await updateTask(task._id, {
+                title: task.title,
+                description: task.description,
+                completed: !task.completed
             });
 
-
-            // Update UI using backend response
-
-            setTasks((previousTasks) => [
-
-                newTask,
-
-                ...previousTasks
-
-            ]);
-
-
-            // Clear form
-
-            setTitle("");
-
-            setDescription("");
-
-
-            // Toast
-
-            showMessage(
-                "Task created successfully"
+            setTasks((prev) =>
+                prev.map((item) => (item._id === updated._id ? updated : item))
             );
 
-        } catch (error) {
-
-            setError(
-                error.message || "Failed to create task"
-            );
-
+            showMessage("Task updated successfully");
+        } catch (err) {
+            handleError(err.message || "Failed to update task");
         } finally {
-
             setLoading(false);
-
         }
-    };
+    }, [showMessage, handleError]);
 
-
-    // ===============================
-    // UPDATE
-    // ===============================
-
-    const handleUpdate = async (task) => {
-
-        try {
-
-            setError("");
-
-            setLoading(true);
-
-
-            const updatedTask = await updateTask(
-
-                task._id,
-
-                {
-                    title: task.title,
-
-                    description: task.description,
-
-                    completed: !task.completed
-                }
-
-            );
-
-
-            // Replace updated task in state
-
-            setTasks((previousTasks) =>
-
-                previousTasks.map((item) =>
-
-                    item._id === updatedTask._id
-
-                        ? updatedTask
-
-                        : item
-
-                )
-
-            );
-
-
-            showMessage(
-                "Task updated successfully"
-            );
-
-        } catch (error) {
-
-            setError(
-                error.message || "Failed to update task"
-            );
-
-        } finally {
-
-            setLoading(false);
-
-        }
-    };
-
-
-    // ===============================
     // DELETE
-    // ===============================
-
-    const handleDelete = async (id) => {
-
+    const handleDelete = useCallback(async (id) => {
         const confirmed = window.confirm(
-
             "Are you sure you want to delete this task?"
-
         );
 
-
-        if (!confirmed) {
-
-            return;
-        }
-
+        if (!confirmed) return;
 
         try {
-
             setError("");
-
             setLoading(true);
-
 
             await deleteTask(id);
 
-
-            // Remove task from UI
-
-            setTasks((previousTasks) =>
-
-                previousTasks.filter(
-
-                    (task) => task._id !== id
-
-                )
-
-            );
-
-
-            showMessage(
-                "Task deleted successfully"
-            );
-
-        } catch (error) {
-
-            setError(
-                error.message || "Failed to delete task"
-            );
-
+            setTasks((prev) => prev.filter((task) => task._id !== id));
+            showMessage("Task deleted successfully");
+        } catch (err) {
+            handleError(err.message || "Failed to delete task");
         } finally {
-
             setLoading(false);
-
         }
-    };
-
-
-    // ===============================
-    // UI
-    // ===============================
+    }, [showMessage, handleError]);
 
     return (
-
         <div className="container">
-
-
             {/* Header */}
-
-            <div className="header">
-
-                <h1>Task Manager</h1>
-
-                <p>
-                    React + Node.js + MongoDB
-                </p>
-
-            </div>
-
-
-            {/* Toast */}
-
-            {message && (
-
-                <div className="toast success">
-
-                    {message}
-
-                </div>
-
-            )}
-
-
-            {/* Error */}
-
-            {error && (
-
-                <div className="toast error">
-
-                    {error}
-
-                </div>
-
-            )}
-
-
-            {/* Create Form */}
-
-            <div className="card">
-
-                <h2>Create New Task</h2>
-
-
-                <form onSubmit={handleCreate}>
-
-                    <div className="form-group">
-
-                        <label>
-                            Task Title
-                        </label>
-
-                        <input
-                            type="text"
-                            placeholder="Enter task title"
-                            value={title}
-                            onChange={(event) =>
-                                setTitle(event.target.value)
-                            }
-                        />
-
-                    </div>
-
-
-                    <div className="form-group">
-
-                        <label>
-                            Description
-                        </label>
-
-                        <textarea
-                            placeholder="Enter task description"
-                            value={description}
-                            onChange={(event) =>
-                                setDescription(event.target.value)
-                            }
-                        />
-
-                    </div>
-
-
-                    <button
-                        className="primary-button"
-                        type="submit"
-                        disabled={loading}
-                    >
-
-                        {loading
-                            ? "Processing..."
-                            : "Add Task"
-                        }
-
-                    </button>
-
-                </form>
-
-            </div>
-
-
-            {/* Task List */}
-
-            <div className="card">
-
-                <div className="task-header">
-
-                    <h2>
-                        Tasks
-                    </h2>
-
-                    <button
-                        className="refresh-button"
-                        onClick={loadTasks}
-                        disabled={loading}
-                    >
-                        Refresh
-                    </button>
-
-                </div>
-
-
-                {loading && tasks.length === 0 && (
-
-                    <p className="loading">
-                        Loading tasks...
-                    </p>
-
-                )}
-
-
-                {!loading && tasks.length === 0 && (
-
-                    <div className="empty">
-
-                        <h3>
-                            No tasks found
-                        </h3>
-
-                        <p>
-                            Create your first task above.
-                        </p>
-
-                    </div>
-
-                )}
-
-
-                <div className="task-list">
-
-                    {tasks.map((task) => (
-
-                        <div
-                            className="task"
-                            key={task._id}
-                        >
-
-                            <div className="task-content">
-
-                                <h3>
-                                    {task.title}
-                                </h3>
-
-                                <p>
-                                    {task.description}
-                                </p>
-
-
-                                <span
-                                    className={
-                                        task.completed
-                                            ? "status completed"
-                                            : "status pending"
-                                    }
-                                >
-
-                                    {task.completed
-                                        ? "Completed"
-                                        : "Pending"
-                                    }
-
-                                </span>
-
-                            </div>
-
-
-                            <div className="task-actions">
-
-                                <button
-                                    className="update-button"
-                                    onClick={() =>
-                                        handleUpdate(task)
-                                    }
-                                    disabled={loading}
-                                >
-
-                                    {task.completed
-                                        ? "Mark Pending"
-                                        : "Complete"
-                                    }
-
-                                </button>
-
-
-                                <button
-                                    className="delete-button"
-                                    onClick={() =>
-                                        handleDelete(task._id)
-                                    }
-                                    disabled={loading}
-                                >
-
-                                    Delete
-
-                                </button>
-
-                            </div>
-
-                        </div>
-
-                    ))}
-
-                </div>
-
-            </div>
-
+            <Header />
+
+            {/* Notification Toasts */}
+            <Toast message={message} error={error} />
+
+            {/* Main Application Area */}
+            <main role="main">
+                <TaskForm
+                    onTaskCreated={handleCreate}
+                    loading={loading}
+                    onError={handleError}
+                />
+
+                <TaskList
+                    tasks={tasks}
+                    onUpdate={handleUpdate}
+                    onDelete={handleDelete}
+                    onRefresh={loadTasks}
+                    loading={loading}
+                />
+            </main>
 
             {/* Footer */}
-
-            <footer>
-
-                Practical 6 — Full Stack Integration
-
-            </footer>
-
+            <Footer />
         </div>
-
     );
 }
 

@@ -4,10 +4,9 @@ const authMiddleware = (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
 
+        // If no auth header provided, allow guest/default access for Practical 6
         if (!authHeader) {
-            return res.status(401).json({
-                message: "Authentication token required"
-            });
+            return next();
         }
 
         const parts = authHeader.split(" ");
@@ -26,7 +25,6 @@ const authMiddleware = (req, res, next) => {
 
         if (!process.env.JWT_SECRET) {
             console.error("JWT_SECRET is missing");
-
             return res.status(500).json({
                 message: "JWT secret is not configured"
             });
@@ -38,7 +36,6 @@ const authMiddleware = (req, res, next) => {
         );
 
         req.user = decoded;
-
         next();
 
     } catch (error) {

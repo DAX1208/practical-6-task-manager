@@ -1,4 +1,4 @@
-# Practical 6 — Full Stack Task Manager
+# Practical 6 — Full Stack Task Manager (Frontend)
 
 ## Practical Statement
 
@@ -6,71 +6,75 @@ Develop a full-stack Task Manager application using React for the frontend, Node
 
 ---
 
-## Project Description
+## Lighthouse Audit Comparison (Before vs. After)
 
-This practical demonstrates full-stack integration using:
+| Metric | Before Optimization | After Optimization | Improvement |
+| :--- | :---: | :---: | :---: |
+| ⚡ **Performance** | 49 (Red) | **99** (Green) | 🟢 **+50 points** |
+| ♿ **Accessibility** | 88 (Orange) | **96** (Green) | 🟢 **+8 points** |
+| 🛡️ **Best Practices** | 96 (Green) | **100** (Perfect) | 🟢 **+4 points** |
+| 🔍 **SEO** | 82 (Orange) | **91** (Green) | 🟢 **+9 points** |
+| ⏱️ **First Contentful Paint (FCP)** | *Very poor* (~10.4s) | **1.6 s** (Green) | 🟢 **-8.8s speedup** |
+| ⏱️ **Largest Contentful Paint (LCP)** | *Very poor* (~18.8s) | **1.6 s** (Green) | 🟢 **-17.2s speedup** |
 
-- React for the frontend
-- Node.js and Express for the backend
-- MongoDB for database storage
-- Mongoose for MongoDB interaction
-- Fetch API for frontend-backend communication
-- CORS for cross-origin communication
+### 📸 Before Optimization
+![Lighthouse Audit — Before Optimization](../Screenshot%202026-09-16%20125413.png)
 
-The application allows users to create, view, update, and delete tasks.
+### 📸 After Optimization (99 Performance)
+![Lighthouse Audit — After Optimization](../Screenshot%202026-09-16%20131532.png)
 
 ---
 
-## Technologies Used
+## Performance Optimizations & Lighthouse Score Improvements
 
-### Frontend
+To achieve optimal Lighthouse audit scores across **Performance**, **Accessibility**, **Best Practices**, and **SEO**, the following strategies were implemented:
 
-- React
-- JavaScript
-- HTML
-- CSS
-- Fetch API
-- Vite
+### 1. Code Splitting & Dynamic Imports
+- **Asynchronous Component Loading**: Leveraged `React.lazy()` and dynamic `import()` to load non-critical components on demand (`TaskForm`, `TaskList`, `Footer`).
+- **Instant FCP (First Contentful Paint)**: Main layout and headers are pre-loaded immediately to ensure fast initial render times.
+- **Suspense Fallbacks**: Integrated `<Suspense>` with animated shimmer skeletons (`LoadingSkeleton`) to eliminate **Cumulative Layout Shift (CLS)** during async chunk fetching.
 
-### Backend
+### 2. Vite & Rollup Manual Chunk Splitting
+- Split vendor dependencies (`react`, `react-dom`) into a separate `vendor-react` cacheable bundle.
+- Isolated individual component chunks (`TaskForm`, `TaskList`, `Footer`) to minimize initial JavaScript payload transferred over the network:
+  - `dist/assets/vendor-react-*.js` (React runtime)
+  - `dist/assets/TaskForm-*.js` (Task Form chunk)
+  - `dist/assets/TaskList-*.js` (Task List chunk)
+  - `dist/assets/Footer-*.js` (Footer chunk)
+  - `dist/assets/index-*.css` (Optimized stylesheet)
 
-- Node.js
-- Express.js
-- Mongoose
-- CORS
+### 3. Accessibility (a11y) & WCAG Compliance
+- Form inputs mapped with unique `id` and `<label htmlFor="...">` attributes for assistive technologies.
+- Added descriptive `aria-label`, `aria-live="polite"` for dynamic toast alerts, and `role="region"`, `role="feed"`, and `role="status"` landmarks.
+- Enhanced contrast ratios on buttons, badges, and text to satisfy WCAG AA/AAA standards.
 
-### Database
-
-- MongoDB
-
-### Development Tool
-
-- Visual Studio Code
+### 4. SEO & Document Metadata
+- Configured descriptive page title and `<meta name="description">` tags in `index.html`.
+- Added Open Graph (`og:title`, `og:description`, `og:image`) tags and `<meta name="theme-color">` for mobile web app standards.
 
 ---
 
 ## Project Structure
 
 ```text
-P-6
-│
-├── frontend
-│   ├── src
-│   │   ├── App.jsx
-│   │   ├── api.js
-│   │   ├── index.css
-│   │   └── main.jsx
-│   │
-│   ├── package.json
-│   └── package-lock.json
-│
-├── backend
-│   ├── models
-│   │   └── Task.js
-│   │
-│   ├── server.js
-│   ├── package.json
-│   └── package-lock.json
-│
-├── .gitignore
-└── README.md
+frontend
+├── src
+│   ├── components
+│   │   ├── Footer.jsx
+│   │   ├── Header.jsx
+│   │   ├── LoadingSkeleton.jsx
+│   │   ├── TaskForm.jsx
+│   │   ├── TaskItem.jsx
+│   │   ├── TaskList.jsx
+│   │   └── Toast.jsx
+│   ├── App.jsx
+│   ├── api.js
+│   ├── index.css
+│   └── main.jsx
+├── public
+│   └── favicon.svg
+├── index.html
+├── vite.config.js
+├── package.json
+└── package-lock.json
+```
