@@ -10,13 +10,14 @@ const User = require("./models/User");
 
 const authMiddleware = require("./middleware/auth");
 const validateTask = require("./middleware/validateTask");
-const cache = require("./middleware/cache");
-
-const TASKS_CACHE_KEY = "all_tasks";
+const redisClient = require("./middleware/redis");
 
 dotenv.config();
 
 const app = express();
+
+const TASKS_CACHE_KEY = "all_tasks";
+const CACHE_TTL_SECONDS = 60; // 60 seconds Time-To-Live
 
 
 // ==================================================
@@ -28,7 +29,7 @@ app.use(express.json());
 
 
 // ==================================================
-// MONGODB
+// MONGODB CONNECTION
 // ==================================================
 
 mongoose
@@ -42,12 +43,12 @@ mongoose
 
 
 // ==================================================
-// TEST
+// TEST ROUTE
 // ==================================================
 
 app.get("/", (req, res) => {
     res.status(200).json({
-        message: "Practical 7 backend is running"
+        message: "Practical 6 backend is running"
     });
 });
 
@@ -151,7 +152,7 @@ app.post("/login", async (req, res) => {
                 userId: user._id.toString(),
                 email: user.email
             },
-            process.env.JWT_SECRET,
+            process.env.JWT_SECRET || "default_secret_key",
             {
                 expiresIn: "1h"
             }
@@ -173,7 +174,7 @@ app.post("/login", async (req, res) => {
 
 
 // ==================================================
-// GET TASKS
+// GET TASKS (Cache-Aside Pattern with Redis)
 // GET /tasks
 // PROTECTED
 // ==================================================
@@ -183,18 +184,30 @@ app.get(
     authMiddleware,
     async (req, res) => {
         try {
-            // (1) Check Cache (Cache Hit)
-            const cachedTasks = cache.get(TASKS_CACHE_KEY);
-            if (cachedTasks) {
-                return res.status(200).json(cachedTasks);
+            // (1) Check Redis Cache (Cache Hit)
+            try {
+                const cachedTasks = await redisClient.get(TASKS_CACHE_KEY);
+                if (cachedTasks) {
+                    return res.status(200).json(JSON.parse(cachedTasks));
+                }
+            } catch (cacheErr) {
+                console.warn("Redis read warning (fallback to DB):", cacheErr.message);
             }
 
             // (2) Cache Miss: Query Database
             const tasks = await Task.find()
                 .sort({ createdAt: -1 });
 
-            // (3) Populate Cache with 60s TTL
-            cache.set(TASKS_CACHE_KEY, tasks, 60);
+            // (3) Populate Redis Cache with TTL
+            try {
+                await redisClient.setEx(
+                    TASKS_CACHE_KEY,
+                    CACHE_TTL_SECONDS,
+                    JSON.stringify(tasks)
+                );
+            } catch (cacheErr) {
+                console.warn("Redis write warning:", cacheErr.message);
+            }
 
             return res.status(200).json(tasks);
 
@@ -210,7 +223,7 @@ app.get(
 
 
 // ==================================================
-// CREATE TASK
+// CREATE TASK (Write-Invalidate Cache)
 // POST /tasks
 // PROTECTED + VALIDATION
 // ==================================================
@@ -234,8 +247,12 @@ app.post(
 
             const savedTask = await task.save();
 
-            // Invalidate Cache after successful write
-            cache.del(TASKS_CACHE_KEY);
+            // Invalidate Redis Cache after successful database write
+            try {
+                await redisClient.del(TASKS_CACHE_KEY);
+            } catch (cacheErr) {
+                console.warn("Redis eviction warning:", cacheErr.message);
+            }
 
             return res.status(201).json(savedTask);
 
@@ -251,7 +268,7 @@ app.post(
 
 
 // ==================================================
-// UPDATE TASK
+// UPDATE TASK (Write-Invalidate Cache)
 // PUT /tasks/:id
 // PROTECTED + VALIDATION
 // ==================================================
@@ -288,8 +305,12 @@ app.put(
                 });
             }
 
-            // Invalidate Cache after successful update
-            cache.del(TASKS_CACHE_KEY);
+            // Invalidate Redis Cache after successful database update
+            try {
+                await redisClient.del(TASKS_CACHE_KEY);
+            } catch (cacheErr) {
+                console.warn("Redis eviction warning:", cacheErr.message);
+            }
 
             return res.status(200).json(updatedTask);
 
@@ -305,7 +326,7 @@ app.put(
 
 
 // ==================================================
-// DELETE TASK
+// DELETE TASK (Write-Invalidate Cache)
 // DELETE /tasks/:id
 // PROTECTED
 // ==================================================
@@ -326,8 +347,12 @@ app.delete(
                 });
             }
 
-            // Invalidate Cache after successful delete
-            cache.del(TASKS_CACHE_KEY);
+            // Invalidate Redis Cache after successful database delete
+            try {
+                await redisClient.del(TASKS_CACHE_KEY);
+            } catch (cacheErr) {
+                console.warn("Redis eviction warning:", cacheErr.message);
+            }
 
             return res.status(200).json({
                 message: "Task deleted successfully",
@@ -346,7 +371,7 @@ app.delete(
 
 
 // ==================================================
-// 404 HANDLER
+// 404 NOT FOUND HANDLER
 // ==================================================
 
 app.use((req, res) => {
@@ -357,7 +382,7 @@ app.use((req, res) => {
 
 
 // ==================================================
-// SERVER
+// START SERVER
 // ==================================================
 
 const PORT = 5000;
