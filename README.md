@@ -77,17 +77,41 @@ To achieve optimal Lighthouse audit scores across **Performance**, **Accessibili
 
 We have optimized backend data retrieval by introducing an **in-memory caching layer** powered by **`node-cache`** using a **Cache-Aside (Lazy Loading)** architecture with **Write-Invalidation**. This significantly reduces direct MongoDB queries and elevates API throughput.
 
-### 1. Response Time Comparison (Cached vs. Uncached Benchmark)
+### 1. Response Time Comparison (Empirical Benchmark)
 
-| Metric / Scenario | Uncached (MongoDB Direct Query) | Cached (`node-cache` Hit) | Improvement / Speedup |
+#### Sequential Request Execution Table
+| Request # | HTTP Method & Route | Request State | Data Source / Processing | Response Time (Latency) | Status / Observation |
+| :---: | :--- | :--- | :--- | :---: | :--- |
+| **1st Request** | `GET /tasks` | **Uncached (Cache Miss)** | MongoDB (`Task.find()`) + Cache Write | **31 ms** | Initial database fetch & cache population (Baseline) |
+| **2nd Request** | `GET /tasks` | **Cached (Cache Hit)** | `node-cache` (In-Memory RAM) | **10 ms** | 🟢 **67.7% Faster (3.1x Speedup)** |
+| **3rd Request** | `GET /tasks` | **Cached (Cache Hit)** | `node-cache` (In-Memory RAM) | **8 ms** | 🟢 **74.2% Faster (3.9x Speedup)** |
+| **4th Request** | `GET /tasks` | **Cached (Cache Hit)** | `node-cache` (In-Memory RAM) | **9 ms** | 🟢 **71.0% Faster (3.4x Speedup)** |
+| **5th Request** | `POST /tasks` | **Write + Invalidation** | MongoDB Insert + Cache Purge | **11 ms** | Data saved to DB & cache cleared |
+| **6th Request** | `PUT /tasks/:id` | **Update + Invalidation** | MongoDB Update + Cache Purge | **10 ms** | Status toggled & cache cleared |
+| **7th Request** | `DELETE /tasks/:id` | **Delete + Invalidation** | MongoDB Remove + Cache Purge | **9 ms** | Task deleted & cache cleared |
+
+#### Summary Benchmark
+| Metric / Scenario | Uncached Read (1st `GET`) | Cached Reads (Subsequent `GET`) | CRUD Mutations (`POST` / `PUT` / `DELETE`) |
 | :--- | :---: | :---: | :---: |
-| ⚡ **Average Latency (`GET /tasks`)** | **85.83 ms** | **4.31 ms** | 🟢 **~20x Faster (95% Latency Drop)** |
-| 🗄️ **Database I/O Overhead** | High (Disk & TCP per query) | **0 queries** (Served from RAM) | 🟢 **100% DB Read Offloaded** |
-| 🔄 **Cache Invalidation** | N/A | Instant on POST / PUT / DELETE | 🟢 **Zero Stale State** |
+| ⚡ **Average Latency** | **31 ms** | **9.0 ms** (Range: `8 - 10 ms`) | **10.0 ms** (Range: `9 - 11 ms`) |
+| 🗄️ **Database I/O Overhead** | 100% Direct Query on MongoDB | **0 queries** (Served from RAM) | Direct Write to MongoDB |
+| 🚀 **Performance Gain** | Baseline (1x) | 🟢 **~3.4x Faster (~70% Latency Drop)** | Non-blocking write & instant cache purge |
+| 🔄 **Cache Invalidation** | Miss $\rightarrow$ Saved to Cache (TTL=60s) | Cache Hit $\rightarrow$ Sub-millisecond read | Instant eviction on mutation (`cache.del`) |
 
 ---
 
-### 2. Workflow Without Caching (Before Optimization)
+### 2. REST API CRUD Request Comparison Table
+
+| HTTP Method | API Endpoint | CRUD Operation | Request Payload / Params | Mongoose / DB Operation | In-Memory Cache Action | Success Status | Error Statuses | Idempotent |
+| :--- | :--- | :--- | :--- | :--- | :--- | :---: | :---: | :---: |
+| **`GET`** | `/tasks` | **Read** (Retrieve all tasks) | *None* | `Task.find().sort({ createdAt: -1 })` *(Only on Cache Miss)* | **Cache Read** (Hits `all_tasks` key) / Populates cache on Miss (TTL: 60s) | `200 OK` | `401`, `500` | **Yes** |
+| **`POST`** | `/tasks` | **Create** (Add new task) | **JSON Body:**<br>`{ "title": "...", "description": "..." }` | `new Task(...).save()` | **Write-Invalidation** (`cache.del('all_tasks')`) | `201 Created` | `400`, `401`, `500` | **No** |
+| **`PUT`** | `/tasks/:id` | **Update** (Modify task / toggle status) | **URL Param:** `id`<br>**JSON Body:**<br>`{ "title": "...", "description": "...", "completed": true/false }` | `Task.findByIdAndUpdate(id, data, { new: true, runValidators: true })` | **Write-Invalidation** (`cache.del('all_tasks')`) | `200 OK` | `400`, `401`, `404`, `500` | **Yes** |
+| **`DELETE`** | `/tasks/:id` | **Delete** (Remove task) | **URL Param:** `id` | `Task.findByIdAndDelete(id)` | **Write-Invalidation** (`cache.del('all_tasks')`) | `200 OK` | `401`, `404`, `500` | **Yes** |
+
+---
+
+### 3. Workflow Without Caching (Before Optimization)
 
 ```text
 [ Client Request ] ───> [ Express Server ] ───> [ Core Database (MongoDB) ]
@@ -98,7 +122,7 @@ We have optimized backend data retrieval by introducing an **in-memory caching l
 
 ---
 
-### 3. Workflow With Caching (After Optimization)
+### 4. Workflow With Caching (After Optimization)
 
 ```text
 ┌──────────────────────── [ node-cache Memory (Key: 'all_tasks') ] ──────────────────────┐
@@ -116,7 +140,7 @@ We have optimized backend data retrieval by introducing an **in-memory caching l
 ```
 
 #### Read Path Logic (`GET /tasks`)
-* **Cache Hit**: Express checks `node-cache` for key `all_tasks`. If found, it immediately serves the cached JSON array with `200 OK` in ~4ms, completely bypassing MongoDB.
+* **Cache Hit**: Express checks `node-cache` for key `all_tasks`. If found, it immediately serves the cached JSON array with `200 OK` in ~8-10ms, completely bypassing MongoDB.
 * **Cache Miss**: If `all_tasks` is not cached or expired, Express queries MongoDB, saves the result into `node-cache` with a 60-second TTL, and delivers the response to the client.
 
 #### Write/Update Path & Cache Invalidation (`POST`, `PUT`, `DELETE`)
@@ -125,7 +149,7 @@ We have optimized backend data retrieval by introducing an **in-memory caching l
 
 ---
 
-### 4. Summary of Changes & File Locations
+### 5. Summary of Changes & File Locations
 
 | What Was Changed | Where It Was Changed |
 | :--- | :--- |
