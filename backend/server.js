@@ -10,6 +10,9 @@ const User = require("./models/User");
 
 const authMiddleware = require("./middleware/auth");
 const validateTask = require("./middleware/validateTask");
+const cache = require("./middleware/cache");
+
+const TASKS_CACHE_KEY = "all_tasks";
 
 dotenv.config();
 
@@ -180,8 +183,18 @@ app.get(
     authMiddleware,
     async (req, res) => {
         try {
+            // (1) Check Cache (Cache Hit)
+            const cachedTasks = cache.get(TASKS_CACHE_KEY);
+            if (cachedTasks) {
+                return res.status(200).json(cachedTasks);
+            }
+
+            // (2) Cache Miss: Query Database
             const tasks = await Task.find()
                 .sort({ createdAt: -1 });
+
+            // (3) Populate Cache with 60s TTL
+            cache.set(TASKS_CACHE_KEY, tasks, 60);
 
             return res.status(200).json(tasks);
 
@@ -220,6 +233,9 @@ app.post(
             });
 
             const savedTask = await task.save();
+
+            // Invalidate Cache after successful write
+            cache.del(TASKS_CACHE_KEY);
 
             return res.status(201).json(savedTask);
 
@@ -272,6 +288,9 @@ app.put(
                 });
             }
 
+            // Invalidate Cache after successful update
+            cache.del(TASKS_CACHE_KEY);
+
             return res.status(200).json(updatedTask);
 
         } catch (error) {
@@ -306,6 +325,9 @@ app.delete(
                     message: "Task not found"
                 });
             }
+
+            // Invalidate Cache after successful delete
+            cache.del(TASKS_CACHE_KEY);
 
             return res.status(200).json({
                 message: "Task deleted successfully",
