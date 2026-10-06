@@ -458,3 +458,275 @@ footer {
         flex: 1;
     }
 }
+
+/* ==================================================
+   EVENT-DRIVEN ARCHITECTURE (EDA) STYLING
+================================================== */
+.eda-card {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #cbd5e1;
+    position: relative;
+    overflow: hidden;
+}
+
+.eda-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.eda-title-block {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.eda-badge {
+    background: #0284c7;
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.eda-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.eda-stream-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    background: #f1f5f9;
+}
+
+.eda-stream-indicator.online {
+    color: #15803d;
+    background: #dcfce7;
+}
+
+.eda-stream-indicator.offline {
+    color: #b91c1c;
+    background: #fee2e2;
+}
+
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7);
+    animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7);
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 6px rgba(22, 163, 74, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+    }
+}
+
+.eda-toggle-btn {
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.eda-toggle-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.eda-ticker {
+    margin-top: 14px;
+    padding: 8px 12px;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ticker-label {
+    color: #38bdf8;
+    font-weight: 700;
+}
+
+.ticker-type {
+    background: #334155;
+    color: #f8fafc;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+.ticker-time {
+    color: #94a3b8;
+}
+
+.ticker-id {
+    margin-left: auto;
+    color: #64748b;
+    font-size: 0.75rem;
+    font-family: monospace;
+}
+
+.eda-alert-box {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 500;
+}
+
+.eda-expanded-panel {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.eda-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 8px;
+}
+
+.eda-tab {
+    background: none;
+    border: none;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: #64748b;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.eda-tab:hover {
+    color: #0f172a;
+    background: #f1f5f9;
+}
+
+.eda-tab.active {
+    color: #0284c7;
+    background: #e0f2fe;
+}
+
+.eda-tab-content {
+    animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.eda-action-button {
+    background: #0284c7;
+    color: #ffffff;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.eda-action-button:hover:not(:disabled) {
+    background: #0369a1;
+}
+
+.eda-audit-table-wrapper {
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.eda-audit-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    text-align: left;
+}
+
+.eda-audit-table th {
+    background: #f8fafc;
+    color: #475569;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 600;
+}
+
+.eda-audit-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+}
+
+.eda-event-tag {
+    background: #e0f2fe;
+    color: #0369a1;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+
+.eda-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+}
+
+.eda-metric-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 14px 12px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.eda-metric-val {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #0284c7;
+}
+
+.eda-metric-lbl {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 4px;
+}
