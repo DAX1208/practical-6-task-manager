@@ -353,6 +353,32 @@ practical-6-task-manager
    Better API responsiveness
 ## How to Run Locally
 
+### Option A: Running with Docker & Docker Compose (Recommended)
+
+Orchestrate the entire 3-tier architecture with a single command without installing Node.js or MongoDB locally:
+
+```bash
+# Build images and start all 3 services in detached mode
+docker compose up --build -d
+
+# Verify all containers are running
+docker ps
+
+# Stream logs from all services
+docker compose logs -f
+
+# Stop and tear down all containers and networks (persisting MongoDB data volume)
+docker compose down
+```
+
+- **Frontend Application**: [http://localhost:5173](http://localhost:5173)
+- **Backend API**: [http://localhost:5000](http://localhost:5000)
+- **MongoDB**: `localhost:27017`
+
+---
+
+### Option B: Running Bare-Metal / Locally
+
 1. **Start MongoDB**:
    Ensure MongoDB service is running locally on port `27017`.
 
@@ -362,7 +388,7 @@ practical-6-task-manager
    npm install
    node server.js
    ```
-   Runs at: `http://127.0.0.1:5000`
+   Runs at: `http://localhost:5000`
 
 3. **Start Frontend Client**:
    ```bash
@@ -377,4 +403,69 @@ practical-6-task-manager
    cd frontend
    npm run build
    ```
+
+---
+
+## Docker Containerization & Multi-Container Orchestration
+
+### Architecture & Service Topology
+
+```
+                  docker-compose.yml
+ ┌─────────────────────────────────────────────────────────┐
+ │                                                         │
+ │  ┌─────────────────┐   HTTP   ┌─────────────────┐       │
+ │  │    frontend     ├─────────►│     backend     │       │
+ │  │  (React/Vite)   │  :5000   │  (Node/Express) │       │
+ │  │   port: 5173    │          │   port: 5000    │       │
+ │  └────────┬────────┘          └────────┬────────┘       │
+ │           │                            │                │
+ │           │                      mongo: 27017           │
+ │           │                            ▼                │
+ │           │                   ┌─────────────────┐       │
+ │           │                   │     mongodb     │       │
+ │           │                   │ (Official Mongo)│       │
+ │           │                   │   port: 27017   │       │
+ │           │                   └────────┬────────┘       │
+ │           │                            │                │
+ │           ▼                            ▼                │
+ │   [Bridge Network: app-network]  [Named Volume:         │
+ │                                   mongo-data]           │
+ └─────────────────────────────────────────────────────────┘
+```
+
+- **frontend**: React client built and served using Vite preview mode on port `5173`.
+- **backend**: Express.js REST API listening on `0.0.0.0:5000`, connected via internal DNS to `mongodb`.
+- **mongodb**: Official MongoDB container with persistent database storage mounted at `/data/db`.
+- **app-network**: Isolated Docker bridge network providing automatic internal DNS service resolution.
+- **mongo-data**: Named Docker volume ensuring task persistence across container restarts and updates.
+
+---
+
+### Key Questions & Architectural Analysis
+
+#### 1. Why does the backend container reference MongoDB by service name (`mongodb`) rather than `localhost`?
+Inside a Docker container, `localhost` (or `127.0.0.1`) refers strictly to the container's own isolated network loopback interface. Because each container operates in its own network namespace, the backend container's `localhost` does not point to the MongoDB container or the host machine. By defining an internal bridge network (`app-network`) in Docker Compose, Docker runs an embedded DNS server that automatically resolves container and service names (e.g. `mongodb://mongodb:27017/taskdb`) to the respective container's internal IP address.
+
+#### 2. What is the difference between `EXPOSE` in a Dockerfile and `ports` in `docker-compose.yml`?
+- **`EXPOSE`**: An informational metadata declaration in the Dockerfile indicating which ports the application inside the image listens on. It does **not** publish or bind the port to the host machine's interfaces.
+- **`ports` (Port Mapping)**: A directive in `docker-compose.yml` (`HOST:CONTAINER`, e.g. `"5000:5000"`) that actively forwards incoming traffic from the host machine's port to the container's port, making the service accessible to external clients and web browsers outside the Docker virtual network.
+
+#### 3. Why is it bad practice to copy `node_modules` into a Docker image instead of running `npm install` inside the container?
+1. **Platform Incompatibility**: Locally installed `node_modules` may contain native C/C++ binary bindings compiled for the host OS and architecture (e.g., Windows x64), which fail to run inside a Linux container (e.g., Debian/Alpine Linux).
+2. **Build Context Bloat**: Copying hundreds of megabytes of `node_modules` significantly slows down Docker build context transfer times.
+3. **Reproducibility**: Running `npm install` (or `npm ci`) inside the container against `package.json` and `package-lock.json` guarantees clean, reproducible, and container-native dependencies.
+
+---
+
+### Supplementary Implementations
+
+1. **`.dockerignore` Optimization**:
+   Added `.dockerignore` files to both `backend/` and `frontend/` (and root) excluding `node_modules`, `.env`, build artifacts (`dist/`), and `.git` from the Docker build context. This drastically minimizes build time and image size.
+
+2. **Persistent MongoDB Data**:
+   Configured a named volume `mongo-data` mounted to `/data/db` in `docker-compose.yml`. All tasks, users, and audit logs persist reliably across `docker compose down` and container rebuilds.
+
+3. **Multi-Stage Build Support**:
+   The frontend Dockerfile utilizes a multi-stage approach (`AS build`) separating build-time tools from the runtime serving environment, allowing seamless migration to minimal static servers (such as Nginx Alpine) for ultra-light production deployments.
 

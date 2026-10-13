@@ -59,10 +59,12 @@ app.use(express.json());
 // MONGODB CONNECTION
 // ==================================================
 
+const MONGO_URI = process.env.MONGO_URI || "mongodb://mongodb:27017/taskdb";
+
 mongoose
-    .connect("mongodb://127.0.0.1:27017/practical6")
+    .connect(MONGO_URI)
     .then(() => {
-        console.log("MongoDB connected");
+        console.log(`MongoDB connected: ${MONGO_URI}`);
     })
     .catch((error) => {
         console.error("MongoDB connection error:", error);
@@ -601,10 +603,10 @@ app.use((req, res) => {
 // START SERVER
 // ==================================================
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, "127.0.0.1", () => {
+app.listen(PORT, "0.0.0.0", () => {
     console.log(
-        `Server running at http://127.0.0.1:${PORT} [Event-Driven Architecture Active]`
+        `Server running at http://0.0.0.0:${PORT} [Event-Driven Architecture Active]`
     );
 });
