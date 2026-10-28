@@ -59,16 +59,18 @@ app.use(express.json());
 // MONGODB CONNECTION
 // ==================================================
 
-const MONGO_URI = process.env.MONGO_URI || "mongodb://mongodb:27017/taskdb";
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/taskdb";
 
-mongoose
-    .connect(MONGO_URI)
-    .then(() => {
-        console.log(`MongoDB connected: ${MONGO_URI}`);
-    })
-    .catch((error) => {
-        console.error("MongoDB connection error:", error);
-    });
+if (process.env.NODE_ENV !== "test" || process.env.CONNECT_DB_IN_TEST === "true") {
+    mongoose
+        .connect(MONGO_URI)
+        .then(() => {
+            console.log(`MongoDB connected: ${MONGO_URI}`);
+        })
+        .catch((error) => {
+            console.error("MongoDB connection error:", error);
+        });
+}
 
 
 // ==================================================
@@ -605,8 +607,13 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(
-        `Server running at http://0.0.0.0:${PORT} [Event-Driven Architecture Active]`
-    );
-});
+let server;
+if (require.main === module || (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID)) {
+    server = app.listen(PORT, "0.0.0.0", () => {
+        console.log(
+            `Server running at http://0.0.0.0:${PORT} [Event-Driven Architecture Active]`
+        );
+    });
+}
+
+module.exports = app;

@@ -27,14 +27,16 @@ redisClient.on("connect", () => {
     console.log("✅ Redis connected successfully");
 });
 
-// Immediately connect to Redis
-(async () => {
-    try {
-        await redisClient.connect();
-    } catch (error) {
-        console.warn("ℹ️ Optional Redis not available - caching will operate in memory/bypass mode.");
-    }
-})();
+// Connect to Redis when not running automated unit tests
+if (process.env.NODE_ENV !== "test") {
+    (async () => {
+        try {
+            await redisClient.connect();
+        } catch (error) {
+            console.warn("ℹ️ Optional Redis not available - caching will operate in memory/bypass mode.");
+        }
+    })();
+}
 
 module.exports = redisClient;
 
