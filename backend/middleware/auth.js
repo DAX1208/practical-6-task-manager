@@ -1,50 +1,38 @@
 const jwt = require("jsonwebtoken");
 
+const JWT_SECRET = process.env.JWT_SECRET || "awdf_task_manager_secret_key_2026";
+
 const authMiddleware = (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
 
-        // If no auth header provided, allow guest/default access for Practical 6
         if (!authHeader) {
-            return next();
+            return res.status(401).json({
+                message: "Authentication required. Please log in."
+            });
         }
 
         const parts = authHeader.split(" ");
 
-        if (
-            parts.length !== 2 ||
-            parts[0] !== "Bearer" ||
-            !parts[1]
-        ) {
+        if (parts.length !== 2 || parts[0] !== "Bearer" || !parts[1]) {
             return res.status(401).json({
-                message: "Invalid authorization format"
+                message: "Invalid authorization format. Format must be 'Bearer <token>'"
             });
         }
 
         const token = parts[1];
-
-        if (!process.env.JWT_SECRET) {
-            console.error("JWT_SECRET is missing");
-            return res.status(500).json({
-                message: "JWT secret is not configured"
-            });
-        }
-
-        const decoded = jwt.verify(
-            token,
-            process.env.JWT_SECRET
-        );
+        const decoded = jwt.verify(token, JWT_SECRET);
 
         req.user = decoded;
         next();
-
     } catch (error) {
-        console.error("JWT error:", error.message);
+        console.warn("JWT verification failed:", error.message);
 
         return res.status(401).json({
-            message: "Invalid or expired token"
+            message: "Invalid or expired token. Please log in again."
         });
     }
 };
 
 module.exports = authMiddleware;
+module.exports.JWT_SECRET = JWT_SECRET;

@@ -3,6 +3,8 @@ import React, { useState } from "react";
 function TaskForm({ onTaskCreated, loading, onError }) {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
+    const [priority, setPriority] = useState("Medium");
+    const [dueDate, setDueDate] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
     const handleSubmit = async (event) => {
@@ -22,10 +24,14 @@ function TaskForm({ onTaskCreated, loading, onError }) {
             setSubmitting(true);
             await onTaskCreated({
                 title: title.trim(),
-                description: description.trim()
+                description: description.trim(),
+                priority,
+                dueDate: dueDate ? new Date(dueDate).toISOString() : null
             });
             setTitle("");
             setDescription("");
+            setDueDate("");
+            setPriority("Medium");
         } catch (err) {
             onError(err.message || "Failed to create task");
         } finally {
@@ -66,6 +72,33 @@ function TaskForm({ onTaskCreated, loading, onError }) {
                         required
                         aria-required="true"
                     />
+                </div>
+
+                <div className="form-row-two">
+                    <div className="form-group">
+                        <label htmlFor="task-priority-input">Priority</label>
+                        <select
+                            id="task-priority-input"
+                            value={priority}
+                            onChange={(e) => setPriority(e.target.value)}
+                            disabled={isBusy}
+                        >
+                            <option value="Low">🟢 Low</option>
+                            <option value="Medium">🟠 Medium</option>
+                            <option value="High">🔴 High</option>
+                        </select>
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="task-due-input">Due Date</label>
+                        <input
+                            id="task-due-input"
+                            type="date"
+                            value={dueDate}
+                            onChange={(e) => setDueDate(e.target.value)}
+                            disabled={isBusy}
+                        />
+                    </div>
                 </div>
 
                 <button
