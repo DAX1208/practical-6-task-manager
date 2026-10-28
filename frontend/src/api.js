@@ -186,3 +186,32 @@ export const subscribeToEventStream = (onEvent, onError) => {
         eventSource.close();
     };
 };
+
+// ===============================
+// Practical 13: Generate AI Task Description
+// ===============================
+
+export const generateAiDescription = async (title) => {
+    const headers = {
+        "Content-Type": "application/json"
+    };
+
+    const token = typeof window !== "undefined" && window.localStorage ? window.localStorage.getItem("token") : null;
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${BASE_URL}/api/ai/generate-description`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ title })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.message || "Failed to generate AI description");
+    }
+
+    return data;
+};

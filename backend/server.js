@@ -19,6 +19,10 @@ const eventBus = require("./events/eventBus");
 const EventTypes = require("./events/eventTypes");
 const initWorkers = require("./workers");
 
+// Practical 13: AI Service & Rate Limiter
+const aiService = require("./services/aiService");
+const aiRateLimiter = require("./middleware/aiRateLimiter");
+
 dotenv.config();
 
 const app = express();
@@ -588,6 +592,52 @@ app.get("/eda/metrics", (req, res) => {
         systemStatus: "Healthy - Event-Driven Architecture Active"
     });
 });
+
+
+// ==================================================
+// PRACTICAL 13: AI TASK DESCRIPTION GENERATION
+// POST /api/ai/generate-description
+// ==================================================
+
+app.post(
+    "/api/ai/generate-description",
+    authMiddleware,
+    (req, res, next) => {
+        const { title } = req.body;
+
+        // 1. Validate title before consuming rate limit
+        if (!title || typeof title !== "string" || !title.trim()) {
+            return res.status(400).json({
+                message: "Task title is required to generate an AI description"
+            });
+        }
+
+        if (title.trim().length > 200) {
+            return res.status(400).json({
+                message: "Task title cannot exceed 200 characters"
+            });
+        }
+
+        next();
+    },
+    aiRateLimiter,
+    async (req, res) => {
+        try {
+            const { title } = req.body;
+
+            // 2. Generate description with OpenAI via AIService
+            const result = await aiService.generateTaskDescription(title.trim());
+
+            return res.status(200).json(result);
+
+        } catch (error) {
+            console.error("AI route error:", error.message);
+            return res.status(500).json({
+                message: "Internal server error occurred while generating description"
+            });
+        }
+    }
+);
 
 
 // ==================================================

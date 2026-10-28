@@ -469,3 +469,180 @@ Inside a Docker container, `localhost` (or `127.0.0.1`) refers strictly to the c
 3. **Multi-Stage Build Support**:
    The frontend Dockerfile utilizes a multi-stage approach (`AS build`) separating build-time tools from the runtime serving environment, allowing seamless migration to minimal static servers (such as Nginx Alpine) for ultra-light production deployments.
 
+
+
+---
+
+## 🤖 AWDF Practical 13: AI API Integration (OpenAI Task Description Generator)
+
+### 1. Practical 13 Objective & Problem Definition
+In academic and enterprise task management systems, creating comprehensive and actionable task descriptions is often tedious. Users frequently enter vague titles without actionable context, leading to forgotten requirements and missed deadlines.
+
+**AWDF Practical 13** addresses this problem by integrating an **AI-powered assistant** directly into the task creation and editing workflows. Using the official **OpenAI Node.js SDK** and the cost-effective, high-speed **`gpt-4o-mini`** model, students can click a single **"Generate Description"** button to transform a short task title into a concise, relevant, and actionable 1–2 sentence description.
+
+---
+
+### 2. AI Feature Workflow & Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            React Frontend Form                              │
+│                                                                             │
+│   1. User types Task Title: "Prepare database practical"                   │
+│   2. User clicks "✨ Generate Description" button                           │
+│   3. Button enters Loading State ("✨ Generating...") & disables inputs      │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+                      HTTP POST /api/ai/generate-description
+                                       │
+┌──────────────────────────────────────▼──────────────────────────────────────┐
+│                            Express 5.2 Backend                              │
+│                                                                             │
+│   4. Validates title (non-empty, max 200 characters)                       │
+│   5. Rate Limiter checks client request quota (max 1 req/min)               │
+│   6. Reads OPENAI_API_KEY securely from process.env (Server-Side Only)      │
+│   7. Calls OpenAI API with gpt-4o-mini model (10s timeout)                 │
+│   8. Returns sanitized JSON response contract                              │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+                             JSON Response Payload
+                                       │
+┌──────────────────────────────────────▼──────────────────────────────────────┐
+│                            React Frontend Form                              │
+│                                                                             │
+│   9. Populates editable Description field with AI suggestion:               │
+│      "Review database concepts, prepare SQL queries, and test exercises."   │
+│  10. Displays visible AI disclaimer:                                        │
+│      "AI-generated suggestions may be inaccurate. Review and edit..."       │
+│  11. User reviews, edits, and manually clicks "Add Task" to save            │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 3. Backend Endpoint Specification
+
+#### Endpoint
+`POST /api/ai/generate-description`
+
+#### Headers
+```http
+Content-Type: application/json
+Authorization: Bearer <optional_jwt_token>
+```
+
+#### Request Payload
+```json
+{
+  "title": "Prepare database practical"
+}
+```
+
+#### Successful Response (HTTP 200 OK)
+```json
+{
+  "description": "Review database concepts, prepare SQL queries, and test the practical exercises.",
+  "fallback": false
+}
+```
+
+#### Recoverable Fallback Response (HTTP 200 OK)
+When an external AI provider error occurs (missing API key, rate limit, quota exceeded, or timeout), the backend responds with a controlled HTTP 200 containing an empty description and a user-friendly fallback reason so the frontend form never crashes:
+```json
+{
+  "description": "",
+  "fallback": true,
+  "reason": "OpenAI API key is not configured. Please enter a description manually."
+}
+```
+
+#### Client Validation Error (HTTP 400 Bad Request)
+```json
+{
+  "message": "Task title is required to generate an AI description"
+}
+```
+
+#### Rate Limit Exceeded (HTTP 429 Too Many Requests)
+```json
+{
+  "message": "Too many AI description requests. Please wait 45 second(s) before trying again.",
+  "retryAfter": 45
+}
+```
+
+---
+
+### 4. API Key Security & Environment Setup
+
+#### Security Rules Enforced:
+1. **Server-Side Exclusivity:** The API key is stored strictly on the backend machine inside `backend/.env`. It is **never** bundled into the React frontend code or prefixed with `VITE_`.
+2. **Git Ignored:** The root `.gitignore` explicitly excludes `.env`, `backend/.env`, and `**/.env`.
+3. **Template Placeholders:** Safe placeholders are provided in `backend/.env.example` and `.env.example`:
+   ```bash
+   OPENAI_API_KEY=your_api_key_here
+   ```
+4. **Log Sanitization:** Server logs never print API keys or authorization headers.
+5. **Revocation Notice:** If an API key is accidentally committed to a public Git repository, adding it to `.gitignore` does **not** erase it from Git history. The key must be immediately revoked and replaced via the [OpenAI Platform Dashboard](https://platform.openai.com/api-keys).
+
+#### Setting Up Your API Key Locally:
+Create a file named `.env` in the `backend/` directory:
+```bash
+# backend/.env
+PORT=5000
+MONGO_URI=mongodb://127.0.0.1:27017/taskdb
+JWT_SECRET=awdf_task_manager_secret_key_2026
+OPENAI_API_KEY=sk-proj-your-real-openai-api-key-here
+```
+
+---
+
+### 5. Rate Limiting Architecture
+
+To protect the server and client quota from excessive consumption, an in-memory rate limiter is configured (`backend/middleware/aiRateLimiter.js`):
+- **Window:** 60 seconds (1 minute).
+- **Quota:** At most 1 description generation request per minute per client.
+- **Client Identity:** Tracks authenticated users by `user:${userId}`. If unauthenticated, securely falls back to client IP address (`ip:${req.ip}`).
+- **Memory Management:** Stale timestamps are cleaned up periodically using unreferenced timers, preventing memory leaks and avoiding open handles in test runners.
+- **Validation-First:** Validation runs before the rate limiter so empty or invalid requests do not penalize user quota.
+
+---
+
+### 6. Responsible AI & Privacy Considerations
+
+1. **Data Minimization:** Only the task `title` string is sent to the OpenAI API. Authentication tokens, passwords, database IDs, and unrelated task checklists are never transmitted.
+2. **Human-in-the-Loop:** Suggestions are rendered into an editable `<textarea>`. The AI never saves, mutates, or deletes a task automatically without the user explicitly clicking "Add Task" or "Save".
+3. **Transparent Disclaimer:** The UI displays a persistent disclaimer:  
+   *`"AI-generated suggestions may be inaccurate. Review and edit before saving."`*
+4. **Graceful Degradation:** The AI feature is strictly optional. If the OpenAI API key is missing or the provider is down, users can enter descriptions manually without hindrance.
+
+---
+
+### 7. Automated Test Suite (Practical 12 & 13)
+
+Run the combined automated regression test suite using Windows PowerShell:
+
+```powershell
+cd "c:\Users\Dax Chauhan\Downloads\practical-6-task-manager-master"
+npm --prefix backend test
+```
+
+#### Verified Test Scenarios (13/13 Passing):
+
+| Scenario | Tested Condition | Expected Result | Verified Status |
+| :---: | :--- | :--- | :---: |
+| **1** | Valid task title with configured OpenAI provider | HTTP 200 with actionable description, `fallback: false` | ✅ PASS |
+| **2** | Empty title, whitespace, or missing body | HTTP 400 Bad Request with validation message | ✅ PASS |
+| **3** | Title exceeding 200 characters | HTTP 400 Bad Request (`cannot exceed 200 characters`) | ✅ PASS |
+| **4** | Missing or unconfigured `OPENAI_API_KEY` | HTTP 200 with `fallback: true` and manual entry guidance | ✅ PASS |
+| **5** | Invalid API key credentials (`AuthenticationError`) | HTTP 200 with `fallback: true` and safe error message | ✅ PASS |
+| **6** | Provider timeout (`APIConnectionTimeoutError`) | HTTP 200 with `fallback: true` and timeout indicator | ✅ PASS |
+| **7** | Rapid repeated requests (< 60s) from same client | HTTP 429 Too Many Requests with `retryAfter` field | ✅ PASS |
+| **8** | Editable description in UI before saving | React state binds to textarea with full editing support | ✅ PASS |
+| **9** | Manual task creation when AI is unavailable | `createTask` functions normally without AI requirement | ✅ PASS |
+| **10** | Existing route security on `GET /tasks` | HTTP 401 on malformed or invalid JWT tokens | ✅ PASS |
+| **11** | Authenticated query on `GET /tasks` | HTTP 200 with task array for authorized user | ✅ PASS |
+| **12** | Health check on `GET /` | HTTP 200 with backend operational status | ✅ PASS |
+| **13** | Telemetry on `GET /eda/metrics` | HTTP 200 with event bus metrics | ✅ PASS |
+
+> **⚠️ Note on API Availability:** Automated regression tests mock the OpenAI provider to ensure tests remain fast, deterministic, and free of API costs. Real-world API generation in browser usage requires a valid, funded OpenAI API key with active quota.
